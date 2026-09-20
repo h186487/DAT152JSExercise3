@@ -122,7 +122,9 @@ class TaskList extends HTMLElement {
      */
     updateTask(task) {
         const row = this._container.querySelector(`tr[data-id="${task.id}"]`);
-        if (row) row.querySelectorAll("td")[1].textContent = task.status;
+        if (row) {
+            row.querySelectorAll("td")[1].textContent = task.status;
+        }    
     }
 
     /**
@@ -132,7 +134,10 @@ class TaskList extends HTMLElement {
     removeTask(id) {
         const row = this._container.querySelector(`tr[data-id="${id}"]`);
         if (row) row.remove();
-        if (this.getNumtasks() === 0) this._container.innerHTML = "";
+        
+        if (this.getNumtasks() === 0) {
+            this._container.innerHTML = "";
+        }    
     }
 
     /**
