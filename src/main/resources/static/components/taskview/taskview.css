@@ -1,29 +1,16 @@
-table {
-    border-collapse: collapse;
-    white-space: nowrap;
+h1 {
+    margin-bottom: 5px;
 }
 
-thead,
-tbody {
-    border-bottom: 2px solid black;
+#message {
+    margin-bottom: 10px;
+    color: #333;
 }
 
-th:first-child,
-td:first-child {
-    padding-left: 0px;
+#newtask {
+    margin-bottom: 15px;
 }
 
-th,
-td {
-    padding-left: 20px;
-    text-align: left;
-}
-
-tr:first-child>th,
-tr:first-child>td {
-    padding-top: 0px;
-}
-
-select {
-    margin: 5px 0 5px 0;
+#newtask button:disabled {
+    color: #999;
 }
