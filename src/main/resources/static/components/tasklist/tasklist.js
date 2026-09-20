@@ -40,11 +40,10 @@ export class TaskList extends HTMLElement {
         this.statuses = []; //store statuses
         //why: component needs to know status options to fill select dropdown
         
-        this.addChangestatusCallback = null; //store callback when user changes status
+        this.changestatusCallback = null; //store callback when user changes status
         //why: tasklist is not supposed to handle direct updates(ajax), so it calls a callback to be able to send to taskview to handle.
-        this.addDeletetaskCallback = null; //same for this
+        this.deletetaskCallback = null; //same for this
         
-        this.tasks = new Map(); //store task data for update/remove later
     }
 
     /**
@@ -81,9 +80,18 @@ export class TaskList extends HTMLElement {
     showTask(task) {
         //create copy of taskrow
         const copyRow = taskrow.content.cloneNode(true);
+        const tr = copyRow.querySelector('tr');
+        tr.dataset.id = task.id; //store task id in tr element
+
+        let tbody = this.shadowRoot.querySelector('tbody');
+        if (!tbody) {
+            const container = this.shadowRoot.querySelector('#tasklist');
+            container.appendChild(tasktable.content.cloneNode(true));
+            tbody = this.shadowRoot.querySelector('tbody');
+        }
+
         //get td elements from copied row
         const td = copyRow.querySelectorAll('td');
-        
         //fill first tid with title and second with status for display
         td[0].textContent = task.title;
         td[1].textContent = task.status;
@@ -106,14 +114,22 @@ export class TaskList extends HTMLElement {
             //all status are in the dropdown, the status matching the task.status is pre-selected
             select.appendChild(option);
         }
-        //creates a tbody from the tbody element in query
-        const tbody = this.shadowRoot.querySelector('tbody');
+
+        select.addEventListener('change', (e) => {
+            const newStatus = select.value;
+            if (this.changestatusCallback) {
+                this.changestatusCallback(task.id, newStatus);
+            }
+        });
+
+        const deleteBtn = copyRow.querySelector('button');
+            deleteBtn.addEventListener('click', () => {
+            if (this.deletetaskCallback) {
+                this.deletetaskCallback(task.id);
+            }
+        });
         //adds the copy of the row to tbody to be displayed
-        tbody.appendChild(copyRow);
-        
-        //stores task in map using id and task
-        this.tasks.set(task.id, task);
-        
+        tbody.insertBefore(copyRow, tbody.firstChild);
     }
 
     /**
@@ -121,16 +137,10 @@ export class TaskList extends HTMLElement {
      * @param {Object} task - Object with attributes {'id':taskId,'status':newStatus}
      */
     updateTask(task) {
-        const taskrows = this.shadowRoot.querySelectorAll('tr');
-        
-        for (let taskrow of taskrows){
-            const td = taskrow.querySelectorAll('td');
-            if (td[0].textContent == task.id){
-                td[1].textContent = task.status;
-                this.tasks.set(task.id, task);
-                return;
-            }
-        }
+        const taskrows = this.shadowRoot.querySelector(`tr[data-id="${task.id}"]`);
+        if (taskrows) {
+            taskrows.querySelectorAll('td')[1].textContent = task.status;
+        }   
     }
 
     /**
@@ -138,17 +148,8 @@ export class TaskList extends HTMLElement {
      * @param {Integer} task - ID of task to remove
      */
     removeTask(id) {
-        const taskrows = this.shadowRoot.querySelectorAll('tr');
-        
-        for (let taskrow of taskrows){
-            const td = taskrow.querySelectorAll('td');
-            if (td[0].textContent == id){
-                taskrow.remove();
-                this.tasks.delete(id);
-                return;
-            }
-            
-        }
+        const taskrows = this.shadowRoot.querySelector(`tr[data-id="${id}"]`);
+        if (taskrows) taskrows.remove();
     }
 
     /**
@@ -156,9 +157,7 @@ export class TaskList extends HTMLElement {
      * @return {Number} - Number of tasks on display in view
      */
     getNumtasks() {
-        const taskrows = this.shadowRoot.querySelectorAll('tr');
-        return taskrows.length;
-
+        return this.shadowRoot.querySelectorAll('tbody tr').length;
     }
 }
 customElements.define('group10-tasklist', TaskList);
