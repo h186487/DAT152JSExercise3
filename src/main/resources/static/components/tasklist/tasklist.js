@@ -1,7 +1,6 @@
 const template = document.createElement("template");
 template.innerHTML = `
-    <link rel="stylesheet" type="text/css" href="${new URL('tasklist.css',import.meta.url)}">
-
+    <link rel="stylesheet" type="text/css" href="${new URL('tasklist.css', import.meta.url)}">
     <div id="tasklist"></div>`;
 
 const tasktable = document.createElement("template");
@@ -24,129 +23,148 @@ taskrow.innerHTML = `
         <td><button type="button">Remove</button></td>
     </tr>
 `;
+
 /**
-  * TaskList
-  * Manage view with list of tasks
-  */
+ * TaskList
+ * Displays a list of tasks. Knows nothing about Ajax or about the code
+ * controlling it; user actions are reported through callbacks.
+ */
 class TaskList extends HTMLElement {
+
+    #shadow;
+    #container;
+    #table = null;
+    #allstatuses = [];
+    #changeCallbacks = [];
+    #deleteCallbacks = [];
 
     constructor() {
         super();
-        
-        this._shadow = this.attachShadow({ mode: "open" });
-        this._shadow.appendChild(template.content.cloneNode(true));
-        this._container = this._shadow.querySelector("#tasklist");
-        
-        this._allstatuses = [];
-        this._changeCallbacks = [];
-        this._deleteCallbacks = [];
-        
+        this.#shadow = this.attachShadow({ mode: "closed" });
+        this.#shadow.appendChild(template.content.cloneNode(true));
+        this.#container = this.#shadow.querySelector("#tasklist");
     }
 
     /**
      * @public
-     * @param {Array} list with all possible task statuses
+     * @param {Array<string>} allstatuses - all possible task statuses
      */
     setStatuseslist(allstatuses) {
-        this._allstatuses = allstatuses;
+        this.#allstatuses = allstatuses;
     }
 
     /**
-     * Add callback to run on change on change of status of a task, i.e. on change in the SELECT element
      * @public
-     * @param {function} callback
+     * @param {function(number, string): void} callback - run with (id, newStatus)
      */
     addChangestatusCallback(callback) {
-        this._changeCallbacks.push(callback);
+        this.#changeCallbacks.push(callback);
     }
 
     /**
-     * Add callback to run on click on delete button of a task
      * @public
-     * @param {function} callback
+     * @param {function(number): void} callback - run with the task id
      */
     addDeletetaskCallback(callback) {
-        this._deleteCallbacks.push(callback);
+        this.#deleteCallbacks.push(callback);
     }
 
     /**
-     * Add task at top in list of tasks in the view
+     * Adds a task at the top of the list. Creates the table on first use.
      * @public
-     * @param {Object} task - Object representing a task
+     * @param {{id: number, title: string, status: string}} task
      */
     showTask(task) {
-        let table = this._container.querySelector("table");
-        if (!table) {
-            this._container.appendChild(tasktable.content.cloneNode(true));
-            table = this._container.querySelector("table");
+        if (this.#table === null) {
+            this.#table = tasktable.content.firstElementChild.cloneNode(true);
+            this.#container.appendChild(this.#table);
         }
-        const tbody = table.querySelector("tbody");
-        
-        const row = taskrow.content.cloneNode(true).querySelector("tr");
+
+        const row = taskrow.content.firstElementChild.cloneNode(true);
         row.dataset.id = task.id;
-        
-        const cells = row.querySelectorAll("td");
-        cells[0].textContent = task.title;
-        cells[1].textContent = task.status;
-        
-        const select = row.querySelector("select");
-        for (const status of this._allstatuses) {
+        row.cells[0].textContent = task.title;
+        row.cells[1].textContent = task.status;
+
+        const select = row.cells[2].firstElementChild;
+        for (const status of this.#allstatuses) {
             const option = document.createElement("option");
             option.value = status;
             option.textContent = status;
             select.appendChild(option);
         }
-        
+
         select.addEventListener("change", () => {
             const newStatus = select.value;
-            if (window.confirm(`Set '${task.title}' to ${newStatus}?`)) {
-                this._changeCallbacks.forEach(cb => cb(task.id, newStatus));
+            const unchanged = newStatus === row.cells[1].textContent;
+            // Same status as already shown: ignore, do not even ask
+            if (unchanged === false && window.confirm(`Set '${task.title}' to ${newStatus}?`)) {
+                this.#changeCallbacks.forEach(cb => cb(task.id, newStatus));
             }
             select.selectedIndex = 0;
         });
 
-        const button = row.querySelector("button");
+        const button = row.cells[3].firstElementChild;
         button.addEventListener("click", () => {
             if (window.confirm(`Delete task '${task.title}'?`)) {
-                this._deleteCallbacks.forEach(cb => cb(task.id));
+                this.#deleteCallbacks.forEach(cb => cb(task.id));
             }
         });
 
+        const tbody = this.#table.tBodies[0];
         tbody.insertBefore(row, tbody.firstChild);
-        
     }
 
     /**
-     * Update the status of a task in the view
-     * @param {Object} task - Object with attributes {'id':taskId,'status':newStatus}
+     * Updates the status shown for a task.
+     * @public
+     * @param {{id: number, status: string}} task
      */
     updateTask(task) {
-        const row = this._container.querySelector(`tr[data-id="${task.id}"]`);
-        if (row) {
-            row.querySelectorAll("td")[1].textContent = task.status;
-        }    
+        const row = this.#findRow(task.id);
+        if (row !== null) {
+            row.cells[1].textContent = task.status;
+        }
     }
 
     /**
-     * Remove a task from the view
-     * @param {Integer} task - ID of task to remove
+     * Removes a task. Removes the whole table (and header) with the last task.
+     * @public
+     * @param {number} id
      */
     removeTask(id) {
-        const row = this._container.querySelector(`tr[data-id="${id}"]`);
-        if (row) row.remove();
-        
+        const row = this.#findRow(id);
+        if (row === null) {
+            return;
+        }
+        row.remove();
         if (this.getNumtasks() === 0) {
-            this._container.innerHTML = "";
-        }    
+            this.#container.replaceChildren();
+            this.#table = null;
+        }
     }
 
     /**
      * @public
-     * @return {Number} - Number of tasks on display in view
+     * @returns {number} number of tasks shown
      */
     getNumtasks() {
-        return this._container.querySelectorAll("tbody tr").length;
+        return this.#table === null ? 0 : this.#table.tBodies[0].rows.length;
+    }
+
+    /**
+     * @param {number} id
+     * @returns {HTMLTableRowElement|null} the row of the task, or null
+     */
+    #findRow(id) {
+        if (this.#table === null) {
+            return null;
+        }
+        for (const row of this.#table.tBodies[0].rows) {
+            if (row.dataset.id === String(id)) {
+                return row;
+            }
+        }
+        return null;
     }
 }
 customElements.define('group10-tasklist', TaskList);
-

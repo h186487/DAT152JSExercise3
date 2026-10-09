@@ -1,10 +1,14 @@
+// Side-effekt-import: registrerer group10-tasklist og group10-taskbox
+// som custom elements FØR malen under prøver å bruke dem.
+import "../tasklist/tasklist.js";
+import "../taskbox/taskbox.js";
+
 const template = document.createElement("template");
 template.innerHTML = `
-    <link rel="stylesheet" type="text/css"
-        href="${new URL('taskview.css', import.meta.url)}">
+    <link rel="stylesheet" type="text/css" href="${new URL('taskview.css', import.meta.url)}">
     
     <h1>Tasks</h1>
-
+    
     <div id="message"><p>Waiting for server data.</p></div>
     <div id="newtask">
         <button type="button" disabled>New task</button>
@@ -14,145 +18,183 @@ template.innerHTML = `
     <group10-tasklist></group10-tasklist>
 
     <!-- The Modal -->
-    <group10-taskbox></group10-taskbox>
-`;
+    <group10-taskbox></group10-taskbox>`
+    ;
 
 /**
  * TaskView
- * All use of Ajax is put in the methods of TaskView, 
- * no use of Ajax or fetch in TaskList nor TaskBox
+ * "Sjefkomponenten" som binder sammen TaskList og TaskBox, og som gjør
+ * ALL Ajax-kommunikasjon mot serveren. TaskList og TaskBox vet ingenting
+ * om at det finnes en server.
  */
 class TaskView extends HTMLElement {
+    #tasklist;
+    #taskbox;
+    #message;
+    #newtaskButton;
+    #shadow;
+    #serviceUrl;
 
     constructor() {
         super();
-        this._shadow = this.attachShadow({ mode: "open" });
-        this._shadow.appendChild(template.content.cloneNode(true));
+        this.#shadow = this.attachShadow({ mode: "closed" });
+        this.#shadow.appendChild(template.content.cloneNode(true));
 
-        this._messageDiv = this._shadow.querySelector("#message");
-        this._newtaskButton = this._shadow.querySelector("#newtask button");
-        this._tasklist = this._shadow.querySelector("group10-tasklist");
-        this._taskbox = this._shadow.querySelector("group10-taskbox");
+        this.#message = this.#shadow.querySelector("#message");
+        this.#newtaskButton = this.#shadow.querySelector("#newtask button");
+        this.#tasklist = this.#shadow.querySelector("group10-tasklist");
+        this.#taskbox = this.#shadow.querySelector("group10-taskbox");
 
-        this._setupNewtaskButton();
-        this._setupTaskbox();
-        this._setupTasklist();
+        // Basis-URL for Ajax-kall, f.eks. "./api"
+        this.#serviceUrl = this.dataset.serviceurl;
+
+        this.#newtaskButton.addEventListener("click", () => {
+            this.#taskbox.show();
+        });
+
+        // Registrer callbacks – dette er de ENESTE stedene disse metodene kalles fra
+        this.#tasklist.addChangestatusCallback((id, newStatus) => this.#onChangeStatus(id, newStatus));
+        this.#tasklist.addDeletetaskCallback((id) => this.#onDeleteTask(id));
+        this.#taskbox.addNewtaskCallback((task) => this.#onNewTask(task));
+
+        // Konstruktøren kan ikke være async, så vi bare "starter" den asynkrone
+        // innlastingen her uten å vente (await) på den.
+        this.#loadInitialData();
     }
 
     /**
-    * Runs when the element is inserted into the document.
-    * Reads the service URL and loads initial data from the server.
-    */
-    async connectedCallback() {
-        this._serviceurl = this.getAttribute("data-serviceurl");
-
-        const statuses = await this._fetchAllstatuses();
-        this._tasklist.setStatuseslist(statuses);
-        this._taskbox.setStatuseslist(statuses);
-
-        const tasks = await this._fetchTasklist();
-        for (const task of tasks) this._tasklist.showTask(task);
-
-        this._updateMessage(this._tasklist.getNumtasks());
-        this._newtaskButton.disabled = false;
-    }
-
-    _setupNewtaskButton() {
-        this._newtaskButton.addEventListener("click", () => this._taskbox.show());
-    }
-
-    _setupTaskbox() {
-        this._taskbox.addNewtaskCallback(async (task) => {
-            const result = await this._postTask(task);
-            if (result.responseStatus) {
-                this._tasklist.showTask(result.task);
-                this._taskbox.close();
-                this._updateMessage(this._tasklist.getNumtasks());
-            }
-        });
-    }
-
-    _setupTasklist() {
-        this._tasklist.addChangestatusCallback(async (id, newStatus) => {
-            const result = await this._putTaskStatus(id, newStatus);
-            if (result.responseStatus) {
-                this._tasklist.updateTask({ id: result.id, status: result.status });
-            }
-        });
-
-        this._tasklist.addDeletetaskCallback(async (id) => {
-            const result = await this._deleteTask(id);
-            if (result.responseStatus) {
-                this._tasklist.removeTask(result.id);
-                this._updateMessage(this._tasklist.getNumtasks());
-            }
-        });
-    }
-
-    _updateMessage(count) {
-        this._messageDiv.innerHTML = "";
-        const p = document.createElement("p");
-        p.textContent = count > 0 ? `Found ${count} tasks.` : "No tasks were found.";
-        this._messageDiv.appendChild(p);
-    }
-
-    /**
+     * Henter statusliste og tasklist fra serveren parallelt med Promise.all,
+     * og fyller TaskList/TaskBox med data. Viser feilmelding hvis noe feiler.
      * @private
-     * @returns {Promise<Array>} list of all possible task statuses
      */
-    async _fetchAllstatuses() {
-        const response = await fetch(`${this._serviceurl}/allstatuses`);
+    async #loadInitialData() {
+        try {
+            const [allstatuses, tasks] = await Promise.all([
+                this.#fetchAllstatuses(),
+                this.#fetchTasklist()
+            ]);
+
+            this.#tasklist.setStatuseslist(allstatuses);
+            this.#taskbox.setStatuseslist(allstatuses);
+
+            for (const task of tasks) {
+                this.#tasklist.showTask(task);
+            }
+
+            this.#showMessage();
+            this.#newtaskButton.disabled = false;
+        } catch (error) {
+            this.#showError(error);
+        }
+    }
+
+    /**
+     * GET api/allstatuses
+     * @private
+     * @return {Promise<Array<string>>}
+     */
+    async #fetchAllstatuses() {
+        const response = await fetch(`${this.#serviceUrl}/allstatuses`);
         const data = await response.json();
-        return data.responseStatus ? data.allstatuses : [];
+        if (data.responseStatus !== true) {
+            throw new Error("Server could not deliver the list of task statuses.");
+        }
+        return data.allstatuses;
     }
 
     /**
-    * @private
-    * @returns {Promise<Array>} list of all tasks from the server
-    */
-    async _fetchTasklist() {
-        const response = await fetch(`${this._serviceurl}/tasklist`);
+     * GET api/tasklist
+     * @private
+     * @return {Promise<Array<Object>>}
+     */
+    async #fetchTasklist() {
+        const response = await fetch(`${this.#serviceUrl}/tasklist`);
         const data = await response.json();
-        return data.responseStatus ? data.tasks : [];
+        if (data.responseStatus !== true) {
+            throw new Error("Server could not deliver the list of tasks.");
+        }
+        return data.tasks;
+    }
+
+    /** Oppdaterer #message-diven basert på antall tasks (illustrasjon 3 og 5) */
+    #showMessage() {
+        const n = this.#tasklist.getNumtasks();
+        this.#message.textContent = "";
+        const p = document.createElement("p");
+        p.textContent = n === 0 ? "No tasks were found." : `Found ${n} tasks.`;
+        this.#message.appendChild(p);
+    }
+
+    /** Viser en enkel feilmelding i #message-diven */
+    #showError(error) {
+        console.error(error);
+        this.#message.textContent = "";
+        const p = document.createElement("p");
+        p.textContent = "Could not load tasks from the server.";
+        this.#message.appendChild(p);
     }
 
     /**
-    * @private
-    * @param {Object} task - {title, status}
-    * @returns {Promise<Object>} server response with {task, responseStatus}
-    */
-    async _postTask(task) {
-        const response = await fetch(`${this._serviceurl}/task`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json; charset=utf-8" },
-            body: JSON.stringify(task)
-        });
-        return await response.json();
+     * PUT api/task/{id}. Oppdaterer visningen kun hvis responseStatus er true.
+     * @private
+     */
+    async #onChangeStatus(id, newStatus) {
+        try {
+            const response = await fetch(`${this.#serviceUrl}/task/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json; charset=utf-8" },
+                body: JSON.stringify({ status: newStatus })
+            });
+            const data = await response.json();
+            if (data.responseStatus === true) {
+                this.#tasklist.updateTask({ id: data.id, status: data.status });
+            }
+        } catch (error) {
+            console.error("Failed to update task status:", error);
+        }
     }
 
     /**
-    * @private
-    * @param {Number} id
-    * @param {String} status
-    * @returns {Promise<Object>} server response with {id, status, responseStatus}
-    */
-    async _putTaskStatus(id, status) {
-        const response = await fetch(`${this._serviceurl}/task/${id}`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json; charset=utf-8" },
-            body: JSON.stringify({ status })
-        });
-        return await response.json();
+     * DELETE api/task/{id}. Fjerner raden kun hvis responseStatus er true.
+     * @private
+     */
+    async #onDeleteTask(id) {
+        try {
+            const response = await fetch(`${this.#serviceUrl}/task/${id}`, {
+                method: "DELETE"
+            });
+            const data = await response.json();
+            if (data.responseStatus === true) {
+                this.#tasklist.removeTask(data.id);
+                this.#showMessage();
+            }
+        } catch (error) {
+            console.error("Failed to delete task:", error);
+        }
     }
 
     /**
-    * @private
-    * @param {Number} id
-    * @returns {Promise<Object>} server response with {id, responseStatus}
-    */
-    async _deleteTask(id) {
-        const response = await fetch(`${this._serviceurl}/task/${id}`, { method: "DELETE" });
-        return await response.json();
+     * POST api/task. Legger til raden med id-en serveren returnerer,
+     * og lukker modalen kun hvis responseStatus er true.
+     * @private
+     */
+    async #onNewTask(task) {
+        try {
+            const response = await fetch(`${this.#serviceUrl}/task`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json; charset=utf-8" },
+                body: JSON.stringify({ title: task.title, status: task.status })
+            });
+            const data = await response.json();
+            if (data.responseStatus === true) {
+                this.#tasklist.showTask(data.task);
+                this.#showMessage();
+                this.#taskbox.close();
+            }
+        } catch (error) {
+            console.error("Failed to add task:", error);
+        }
     }
 }
-customElements.define('group10-taskview', TaskView);
+
+customElements.define("group10-taskview", TaskView);
