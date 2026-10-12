@@ -61,7 +61,6 @@ class TaskView extends HTMLElement {
     /**
      * Henter statusliste og tasklist fra serveren parallelt med Promise.all,
      * og fyller TaskList/TaskBox med data. Viser feilmelding hvis noe feiler.
-     * @returns {Promise<void>}
      */
     async #loadInitialData() {
         try {
@@ -86,7 +85,7 @@ class TaskView extends HTMLElement {
 
     /**
      * GET api/allstatuses
-     * @returns {Promise<Array<string>>} 
+     * @return {Promise<Array<string>>} 
      * @throws {Error} 
      */
     async #fetchAllstatuses() {
@@ -101,7 +100,7 @@ class TaskView extends HTMLElement {
     
     /**
      * GET api/tasklist
-     * @returns {Promise<Array<{id: number, title: string, status: string}>>}
+     * @return {Promise<Array<{id: number, title: string, status: string}>>}
      * @throws {Error} 
      */
     async #fetchTasklist() {
@@ -113,9 +112,7 @@ class TaskView extends HTMLElement {
         return data.tasks;
     }
 
-    /** Oppdaterer #message-diven basert på antall tasks
-     * * @returns {void}
-     */
+    /** Oppdaterer #message-diven basert på antall tasks */
     #showMessage() {
         const n = this.#tasklist.getNumtasks();
         this.#message.textContent = "";
@@ -126,7 +123,6 @@ class TaskView extends HTMLElement {
 
     /** Viser en enkel feilmelding i #message-diven 
      * @param {Error} error 
-     * @returns {void}
      */
     #showError(error) {
         console.error(error);
@@ -138,9 +134,8 @@ class TaskView extends HTMLElement {
 
     /**
     * PUT api/task/{id}. Oppdaterer visningen kun hvis responseStatus er true.
-    * @param {number} id - id til tasken
-    * @param {string} newStatus - ny status, f.eks. "DONE"
-    * @returns {Promise<void>}
+    * @param {number} id 
+    * @param {string} newStatus 
     */
     async #onChangeStatus(id, newStatus) {
         try {
@@ -160,8 +155,7 @@ class TaskView extends HTMLElement {
 
     /**
     * DELETE api/task/{id}. Fjerner raden kun hvis responseStatus er true.
-    * @param {number} id - id til tasken som skal slettes
-    * @returns {Promise<void>}
+    * @param {number} id 
     */
     async #onDeleteTask(id) {
         try {
@@ -181,8 +175,7 @@ class TaskView extends HTMLElement {
     /**
     * POST api/task. Legger til raden med id-en serveren returnerer,
     * og lukker modalen kun hvis responseStatus er true.
-    * @param {{title: string, status: string}} task - den nye tasken fra TaskBox
-    * @returns {Promise<void>}
+    * @param {{title: string, status: string}} task 
     */
     async #onNewTask(task) {
         try {
