@@ -1,5 +1,3 @@
-// Side-effekt-import: registrerer group10-tasklist og group10-taskbox
-// som custom elements FØR malen under prøver å bruke dem.
 import "../tasklist/tasklist.js";
 import "../taskbox/taskbox.js";
 
@@ -23,7 +21,7 @@ template.innerHTML = `
 
 /**
  * TaskView
- * "Sjefkomponenten" som binder sammen TaskList og TaskBox, og som gjør
+ * Binder sammen TaskList og TaskBox, og som gjør
  * ALL Ajax-kommunikasjon mot serveren. TaskList og TaskBox vet ingenting
  * om at det finnes en server.
  */
@@ -45,20 +43,18 @@ class TaskView extends HTMLElement {
         this.#tasklist = this.#shadow.querySelector("group10-tasklist");
         this.#taskbox = this.#shadow.querySelector("group10-taskbox");
 
-        // Basis-URL for Ajax-kall, f.eks. "./api"
         this.#serviceUrl = this.dataset.serviceurl;
 
         this.#newtaskButton.addEventListener("click", () => {
             this.#taskbox.show();
         });
 
-        // Registrer callbacks – dette er de ENESTE stedene disse metodene kalles fra
+        // Registrer callbacks: dette er de ENESTE stedene disse metodene kalles fra
         this.#tasklist.addChangestatusCallback((id, newStatus) => this.#onChangeStatus(id, newStatus));
         this.#tasklist.addDeletetaskCallback((id) => this.#onDeleteTask(id));
         this.#taskbox.addNewtaskCallback((task) => this.#onNewTask(task));
 
-        // Konstruktøren kan ikke være async, så vi bare "starter" den asynkrone
-        // innlastingen her uten å vente (await) på den.
+        // Asynkrone innlastingen fordi konstruktøren ikke kan være asynk
         this.#loadInitialData();
     }
 
@@ -116,7 +112,7 @@ class TaskView extends HTMLElement {
         return data.tasks;
     }
 
-    /** Oppdaterer #message-diven basert på antall tasks (illustrasjon 3 og 5) */
+    /** Oppdaterer #message-diven basert på antall tasks */
     #showMessage() {
         const n = this.#tasklist.getNumtasks();
         this.#message.textContent = "";
@@ -135,9 +131,11 @@ class TaskView extends HTMLElement {
     }
 
     /**
-     * PUT api/task/{id}. Oppdaterer visningen kun hvis responseStatus er true.
-     * @private
-     */
+    * PUT api/task/{id}. Oppdaterer visningen kun hvis responseStatus er true.
+    * @param {number} id - id til tasken
+    * @param {string} newStatus - ny status, f.eks. "DONE"
+    * @returns {Promise<void>}
+    */
     async #onChangeStatus(id, newStatus) {
         try {
             const response = await fetch(`${this.#serviceUrl}/task/${id}`, {
@@ -155,9 +153,10 @@ class TaskView extends HTMLElement {
     }
 
     /**
-     * DELETE api/task/{id}. Fjerner raden kun hvis responseStatus er true.
-     * @private
-     */
+    * DELETE api/task/{id}. Fjerner raden kun hvis responseStatus er true.
+    * @param {number} id - id til tasken som skal slettes
+    * @returns {Promise<void>}
+    */
     async #onDeleteTask(id) {
         try {
             const response = await fetch(`${this.#serviceUrl}/task/${id}`, {
@@ -174,10 +173,11 @@ class TaskView extends HTMLElement {
     }
 
     /**
-     * POST api/task. Legger til raden med id-en serveren returnerer,
-     * og lukker modalen kun hvis responseStatus er true.
-     * @private
-     */
+    * POST api/task. Legger til raden med id-en serveren returnerer,
+    * og lukker modalen kun hvis responseStatus er true.
+    * @param {{title: string, status: string}} task - den nye tasken fra TaskBox
+    * @returns {Promise<void>}
+    */
     async #onNewTask(task) {
         try {
             const response = await fetch(`${this.#serviceUrl}/task`, {
