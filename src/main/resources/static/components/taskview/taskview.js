@@ -61,7 +61,7 @@ class TaskView extends HTMLElement {
     /**
      * Henter statusliste og tasklist fra serveren parallelt med Promise.all,
      * og fyller TaskList/TaskBox med data. Viser feilmelding hvis noe feiler.
-     * @private
+     * @returns {Promise<void>}
      */
     async #loadInitialData() {
         try {
@@ -86,8 +86,8 @@ class TaskView extends HTMLElement {
 
     /**
      * GET api/allstatuses
-     * @private
-     * @return {Promise<Array<string>>}
+     * @returns {Promise<Array<string>>} 
+     * @throws {Error} 
      */
     async #fetchAllstatuses() {
         const response = await fetch(`${this.#serviceUrl}/allstatuses`);
@@ -98,10 +98,11 @@ class TaskView extends HTMLElement {
         return data.allstatuses;
     }
 
+    
     /**
      * GET api/tasklist
-     * @private
-     * @return {Promise<Array<Object>>}
+     * @returns {Promise<Array<{id: number, title: string, status: string}>>}
+     * @throws {Error} 
      */
     async #fetchTasklist() {
         const response = await fetch(`${this.#serviceUrl}/tasklist`);
@@ -112,7 +113,9 @@ class TaskView extends HTMLElement {
         return data.tasks;
     }
 
-    /** Oppdaterer #message-diven basert på antall tasks */
+    /** Oppdaterer #message-diven basert på antall tasks
+     * * @returns {void}
+     */
     #showMessage() {
         const n = this.#tasklist.getNumtasks();
         this.#message.textContent = "";
@@ -121,7 +124,10 @@ class TaskView extends HTMLElement {
         this.#message.appendChild(p);
     }
 
-    /** Viser en enkel feilmelding i #message-diven */
+    /** Viser en enkel feilmelding i #message-diven 
+     * @param {Error} error 
+     * @returns {void}
+     */
     #showError(error) {
         console.error(error);
         this.#message.textContent = "";
