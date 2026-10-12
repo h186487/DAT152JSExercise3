@@ -47,7 +47,7 @@ class TaskList extends HTMLElement {
 
     /**
      * @public
-     * @param {Array<string>} allstatuses - all possible task statuses
+     * @param {Array<string>} allstatuses 
      */
     setStatuseslist(allstatuses) {
         this.#allstatuses = allstatuses;
@@ -55,7 +55,7 @@ class TaskList extends HTMLElement {
 
     /**
      * @public
-     * @param {function(number, string): void} callback - run with (id, newStatus)
+     * @param {function(number, string): void} callback 
      */
     addChangestatusCallback(callback) {
         this.#changeCallbacks.push(callback);
@@ -63,14 +63,14 @@ class TaskList extends HTMLElement {
 
     /**
      * @public
-     * @param {function(number): void} callback - run with the task id
+     * @param {function(number): void} callback 
      */
     addDeletetaskCallback(callback) {
         this.#deleteCallbacks.push(callback);
     }
 
     /**
-     * Adds a task at the top of the list. Creates the table on first use.
+     * Adds a task at the top of the list. Creates the table when first used.
      * @public
      * @param {{id: number, title: string, status: string}} task
      */
@@ -96,7 +96,6 @@ class TaskList extends HTMLElement {
         select.addEventListener("change", () => {
             const newStatus = select.value;
             const unchanged = newStatus === row.cells[1].textContent;
-            // Same status as already shown: ignore, do not even ask
             if (unchanged === false && window.confirm(`Set '${task.title}' to ${newStatus}?`)) {
                 this.#changeCallbacks.forEach(cb => cb(task.id, newStatus));
             }
@@ -127,7 +126,7 @@ class TaskList extends HTMLElement {
     }
 
     /**
-     * Removes a task. Removes the whole table (and header) with the last task.
+     * Removes a task. Removes the whole table and header with the last task.
      * @public
      * @param {number} id
      */
@@ -145,7 +144,7 @@ class TaskList extends HTMLElement {
 
     /**
      * @public
-     * @returns {number} number of tasks shown
+     * @returns {number}
      */
     getNumtasks() {
         return this.#table === null ? 0 : this.#table.tBodies[0].rows.length;
@@ -153,7 +152,7 @@ class TaskList extends HTMLElement {
 
     /**
      * @param {number} id
-     * @returns {HTMLTableRowElement|null} the row of the task, or null
+     * @returns {HTMLTableRowElement|null} 
      */
     #findRow(id) {
         if (this.#table === null) {

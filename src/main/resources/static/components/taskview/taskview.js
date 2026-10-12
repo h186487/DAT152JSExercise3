@@ -21,9 +21,8 @@ template.innerHTML = `
 
 /**
  * TaskView
- * Binder sammen TaskList og TaskBox, og som gjør
- * ALL Ajax-kommunikasjon mot serveren. TaskList og TaskBox vet ingenting
- * om at det finnes en server.
+ * The controlling component. Connects TaskList and TaskBox, and does ALL
+ * Ajax communication with the server. 
  */
 class TaskView extends HTMLElement {
     #tasklist;
@@ -49,18 +48,18 @@ class TaskView extends HTMLElement {
             this.#taskbox.show();
         });
 
-        // Registrer callbacks: dette er de ENESTE stedene disse metodene kalles fra
+        // Register callbacks. These are the only places the handlers are called from.
         this.#tasklist.addChangestatusCallback((id, newStatus) => this.#onChangeStatus(id, newStatus));
         this.#tasklist.addDeletetaskCallback((id) => this.#onDeleteTask(id));
         this.#taskbox.addNewtaskCallback((task) => this.#onNewTask(task));
 
-        // Asynkrone innlastingen fordi konstruktøren ikke kan være asynk
+        // Loading starts her because the constructor cannot be async
         this.#loadInitialData();
     }
 
     /**
-     * Henter statusliste og tasklist fra serveren parallelt med Promise.all,
-     * og fyller TaskList/TaskBox med data. Viser feilmelding hvis noe feiler.
+     * Fetches the status list and the task list in parallel (Promise.all)
+     * and fills TaskList and TaskBox. Shows an error message if anything fails;
      */
     async #loadInitialData() {
         try {
@@ -112,7 +111,7 @@ class TaskView extends HTMLElement {
         return data.tasks;
     }
 
-    /** Oppdaterer #message-diven basert på antall tasks */
+    /** Updates the message div based on the number of tasks shown. */
     #showMessage() {
         const n = this.#tasklist.getNumtasks();
         this.#message.textContent = "";
@@ -121,7 +120,7 @@ class TaskView extends HTMLElement {
         this.#message.appendChild(p);
     }
 
-    /** Viser en enkel feilmelding i #message-diven 
+    /** Shows a simple error message in the message div.
      * @param {Error} error 
      */
     #showError(error) {
@@ -133,7 +132,7 @@ class TaskView extends HTMLElement {
     }
 
     /**
-    * PUT api/task/{id}. Oppdaterer visningen kun hvis responseStatus er true.
+    * PUT api/task/{id}. Updates the view only if responseStatus is true.
     * @param {number} id 
     * @param {string} newStatus 
     */
@@ -154,7 +153,7 @@ class TaskView extends HTMLElement {
     }
 
     /**
-    * DELETE api/task/{id}. Fjerner raden kun hvis responseStatus er true.
+    * DELETE api/task/{id}. Removes the row only if responseStatus is true.
     * @param {number} id 
     */
     async #onDeleteTask(id) {
@@ -173,8 +172,8 @@ class TaskView extends HTMLElement {
     }
 
     /**
-    * POST api/task. Legger til raden med id-en serveren returnerer,
-    * og lukker modalen kun hvis responseStatus er true.
+    * POST api/task. Adds the row with the id returned by the server and
+    * closes the modal, only if responseStatus is true.
     * @param {{title: string, status: string}} task 
     */
     async #onNewTask(task) {

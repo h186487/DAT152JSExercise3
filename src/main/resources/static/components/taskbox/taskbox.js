@@ -19,7 +19,6 @@ template.innerHTML = `
 /**
  * TaskBox
  * Modal box for entering a new task. Never closes itself after "Add task";
- * the controlling code calls close() when the task has been saved.
  */
 class TaskBox extends HTMLElement {
 
@@ -48,7 +47,7 @@ class TaskBox extends HTMLElement {
 
     /**
      * @public
-     * @param {Array<string>} list - all possible task statuses
+     * @param {Array<string>} list 
      */
     setStatuseslist(list) {
         this.#select.replaceChildren();
