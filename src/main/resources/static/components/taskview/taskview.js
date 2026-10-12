@@ -1,0 +1,198 @@
+import "../tasklist/tasklist.js";
+import "../taskbox/taskbox.js";
+
+const template = document.createElement("template");
+template.innerHTML = `
+    <link rel="stylesheet" type="text/css" href="${new URL('taskview.css', import.meta.url)}">
+    
+    <h1>Tasks</h1>
+    
+    <div id="message"><p>Waiting for server data.</p></div>
+    <div id="newtask">
+        <button type="button" disabled>New task</button>
+    </div>
+
+    <!-- The task list -->
+    <group10-tasklist></group10-tasklist>
+
+    <!-- The Modal -->
+    <group10-taskbox></group10-taskbox>`
+    ;
+
+/**
+ * TaskView
+ * The controlling component. Connects TaskList and TaskBox, and does ALL
+ * Ajax communication with the server. 
+ */
+class TaskView extends HTMLElement {
+    #tasklist;
+    #taskbox;
+    #message;
+    #newtaskButton;
+    #shadow;
+    #serviceUrl;
+
+    constructor() {
+        super();
+        this.#shadow = this.attachShadow({ mode: "closed" });
+        this.#shadow.appendChild(template.content.cloneNode(true));
+
+        this.#message = this.#shadow.querySelector("#message");
+        this.#newtaskButton = this.#shadow.querySelector("#newtask button");
+        this.#tasklist = this.#shadow.querySelector("group10-tasklist");
+        this.#taskbox = this.#shadow.querySelector("group10-taskbox");
+
+        this.#serviceUrl = this.dataset.serviceurl;
+
+        this.#newtaskButton.addEventListener("click", () => {
+            this.#taskbox.show();
+        });
+
+        // Register callbacks. These are the only places the handlers are called from.
+        this.#tasklist.addChangestatusCallback((id, newStatus) => this.#onChangeStatus(id, newStatus));
+        this.#tasklist.addDeletetaskCallback((id) => this.#onDeleteTask(id));
+        this.#taskbox.addNewtaskCallback((task) => this.#onNewTask(task));
+
+        // Loading starts her because the constructor cannot be async
+        this.#loadInitialData();
+    }
+
+    /**
+     * Fetches the status list and the task list in parallel (Promise.all)
+     * and fills TaskList and TaskBox. Shows an error message if anything fails;
+     */
+    async #loadInitialData() {
+        try {
+            const [allstatuses, tasks] = await Promise.all([
+                this.#fetchAllstatuses(),
+                this.#fetchTasklist()
+            ]);
+
+            this.#tasklist.setStatuseslist(allstatuses);
+            this.#taskbox.setStatuseslist(allstatuses);
+
+            for (const task of tasks) {
+                this.#tasklist.showTask(task);
+            }
+
+            this.#showMessage();
+            this.#newtaskButton.disabled = false;
+        } catch (error) {
+            this.#showError(error);
+        }
+    }
+
+    /**
+     * GET api/allstatuses
+     * @return {Promise<Array<string>>} 
+     * @throws {Error} 
+     */
+    async #fetchAllstatuses() {
+        const response = await fetch(`${this.#serviceUrl}/allstatuses`);
+        const data = await response.json();
+        if (data.responseStatus !== true) {
+            throw new Error("Server could not deliver the list of task statuses.");
+        }
+        return data.allstatuses;
+    }
+
+    
+    /**
+     * GET api/tasklist
+     * @return {Promise<Array<{id: number, title: string, status: string}>>}
+     * @throws {Error} 
+     */
+    async #fetchTasklist() {
+        const response = await fetch(`${this.#serviceUrl}/tasklist`);
+        const data = await response.json();
+        if (data.responseStatus !== true) {
+            throw new Error("Server could not deliver the list of tasks.");
+        }
+        return data.tasks;
+    }
+
+    /** Updates the message div based on the number of tasks shown. */
+    #showMessage() {
+        const n = this.#tasklist.getNumtasks();
+        this.#message.textContent = "";
+        const p = document.createElement("p");
+        p.textContent = n === 0 ? "No tasks were found." : `Found ${n} tasks.`;
+        this.#message.appendChild(p);
+    }
+
+    /** Shows a simple error message in the message div.
+     * @param {Error} error 
+     */
+    #showError(error) {
+        console.error(error);
+        this.#message.textContent = "";
+        const p = document.createElement("p");
+        p.textContent = "Could not load tasks from the server.";
+        this.#message.appendChild(p);
+    }
+
+    /**
+    * PUT api/task/{id}. Updates the view only if responseStatus is true.
+    * @param {number} id 
+    * @param {string} newStatus 
+    */
+    async #onChangeStatus(id, newStatus) {
+        try {
+            const response = await fetch(`${this.#serviceUrl}/task/${id}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json; charset=utf-8" },
+                body: JSON.stringify({ status: newStatus })
+            });
+            const data = await response.json();
+            if (data.responseStatus === true) {
+                this.#tasklist.updateTask({ id: data.id, status: data.status });
+            }
+        } catch (error) {
+            console.error("Failed to update task status:", error);
+        }
+    }
+
+    /**
+    * DELETE api/task/{id}. Removes the row only if responseStatus is true.
+    * @param {number} id 
+    */
+    async #onDeleteTask(id) {
+        try {
+            const response = await fetch(`${this.#serviceUrl}/task/${id}`, {
+                method: "DELETE"
+            });
+            const data = await response.json();
+            if (data.responseStatus === true) {
+                this.#tasklist.removeTask(data.id);
+                this.#showMessage();
+            }
+        } catch (error) {
+            console.error("Failed to delete task:", error);
+        }
+    }
+
+    /**
+    * POST api/task. Adds the row with the id returned by the server and
+    * closes the modal, only if responseStatus is true.
+    * @param {{title: string, status: string}} task 
+    */
+    async #onNewTask(task) {
+        try {
+            const response = await fetch(`${this.#serviceUrl}/task`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json; charset=utf-8" },
+                body: JSON.stringify({ title: task.title, status: task.status })
+            });
+            const data = await response.json();
+            if (data.responseStatus === true) {
+                this.#tasklist.showTask(data.task);
+                this.#showMessage();
+                this.#taskbox.close();
+            }
+        } catch (error) {
+            console.error("Failed to add task:", error);
+        }
+    }
+}
+
+customElements.define("group10-taskview", TaskView);

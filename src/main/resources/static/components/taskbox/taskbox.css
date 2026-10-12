@@ -1,29 +1,15 @@
-table {
-    border-collapse: collapse;
-    white-space: nowrap;
+dialog {
+    border-radius: 6px;
+    border: 1px solid #ccc;
+    padding: 16px;
 }
 
-thead,
-tbody {
-    border-bottom: 2px solid black;
+dialog span {
+    float: right;
+    cursor: pointer;
+    font-size: 1.2em;
 }
 
-th:first-child,
-td:first-child {
-    padding-left: 0px;
-}
-
-th,
-td {
-    padding-left: 20px;
-    text-align: left;
-}
-
-tr:first-child>th,
-tr:first-child>td {
-    padding-top: 0px;
-}
-
-select {
-    margin: 5px 0 5px 0;
+dialog div {
+    margin: 8px 0;
 }
